@@ -10,13 +10,14 @@
       {{ ui.kicker(doc.source_code, page.sources) }}
       <h1 class="article__headline">{{ doc.title }}</h1>
       {% if doc.summary %}<p class="article__standfirst">{{ doc.summary }}</p>{% endif %}
-      <p class="article__byline">
+      <p class="article__byline" dir="ltr">
         <time>{{ doc | published }}</time>
         {% if doc.document_type %}· {{ doc.document_type | humanize }}{% endif %}
         · <a href="{{ doc.source_url }}" rel="noopener noreferrer" target="_blank">Original source ↗</a>
       </p>
       {% if doc.image_url %}
-        <img class="article__image" src="{{ doc.image_url }}" alt="" loading="lazy" referrerpolicy="no-referrer">
+        <img class="article__image" src="{{ doc.image_url }}" alt="" loading="lazy" referrerpolicy="no-referrer"
+             onerror="this.remove()">
       {% endif %}
 
       {% if page.paragraphs %}

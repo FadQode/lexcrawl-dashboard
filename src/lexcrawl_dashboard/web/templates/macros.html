@@ -10,14 +10,15 @@
 {%- endmacro %}
 
 {% macro story(doc, sources, size="medium", show_summary=true) -%}
-  <article class="story story--{{ size }}">
+  <article class="story story--{{ size }}" dir="auto" lang="{{ doc.language }}">
     {% if size == "lead" and doc.image_url %}
-      <img class="story__image" src="{{ doc.image_url }}" alt="" loading="lazy" referrerpolicy="no-referrer">
+      <img class="story__image" src="{{ doc.image_url }}" alt="" loading="lazy" referrerpolicy="no-referrer"
+           onerror="this.remove()">{# a source that blocks hotlinking should not leave an empty box #}
     {% endif %}
     {{ kicker(doc.source_code, sources) }}
     <h3 class="story__headline"><a href="/documents/{{ doc.id }}">{{ doc.title }}</a></h3>
     {% if show_summary and doc.summary %}<p class="story__summary">{{ doc.summary }}</p>{% endif %}
-    <p class="story__meta">
+    <p class="story__meta" dir="ltr">
       <time>{{ doc | published }}</time>
       {% if doc.document_type %}<span>· {{ doc.document_type | humanize }}</span>{% endif %}
       {% if doc.language != "en" %}<span class="lang">{{ doc.language | upper }}</span>{% endif %}

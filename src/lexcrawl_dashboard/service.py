@@ -1,0 +1,179 @@
+"""Dashboard service: fetches (and caches) API data, then assembles page view models.
+
+Each front-page panel is fetched independently. When one endpoint fails, that panel is
+left empty and a notice is shown, instead of the whole page failing.
+"""
+
+from __future__ import annotations
+
+from collections.abc import Callable, Sequence
+from datetime import UTC, datetime
+
+from lexcrawl_dashboard.cache import TtlCache
+from lexcrawl_dashboard.client import LexCrawlApiError, LexCrawlClient
+from lexcrawl_dashboard.config import Settings
+from lexcrawl_dashboard.insights import coverage_stats, crawl_health, credit_summary, paragraphs, source_for
+from lexcrawl_dashboard.models import Document, Run, Source
+from lexcrawl_dashboard.viewmodels import ArticlePage, FrontPage, Section, SectionPage, StatusDesk
+
+_TOP_STORIES = 4
+_TICKER_ITEMS = 10
+_SECTION_ITEMS = 5
+_RELATED_ITEMS = 5
+_PENDING_LIMIT = 500
+
+
+class DashboardService:
+    """Builds every page's view model from the LexCrawl API."""
+
+    def __init__(
+        self,
+        client: LexCrawlClient,
+        settings: Settings,
+        *,
+        cache: TtlCache | None = None,
+        clock: Callable[[], datetime] = lambda: datetime.now(tz=UTC),
+    ) -> None:
+        self._client = client
+        self._settings = settings
+        self._cache = cache or TtlCache(settings.cache_ttl_seconds)
+        self._clock = clock
+
+    # --- Pages -------------------------------------------------------------
+
+    def front_page(self) -> FrontPage:
+        """The newspaper front page: lead story, sections, and the dashboard rail."""
+        now = self._clock()
+        notices: list[str] = []
+        sources = self._sources(notices)
+        latest = self._attempt(
+            lambda: self._cached(
+                ("documents", None), lambda: self._client.documents(limit=self._settings.front_page_documents)
+            ).items,
+            "latest documents",
+            notices,
+        )
+        runs = self._attempt(lambda: self._recent_runs(), "crawl runs", notices)
+        usage = self._attempt(lambda: self._cached(("credits",), self._client.credits), "credits", notices)
+        pending = self._attempt(
+            lambda: self._cached(("pending",), lambda: self._client.pending(limit=_PENDING_LIMIT)),
+            "pending documents",
+            notices,
+        )
+        sections = tuple(
+            Section(source=source, documents=tuple(docs))
+            for source in sources.values()
+            if (docs := [doc for doc in (latest or []) if doc.source_code == source.code][:_SECTION_ITEMS])
+        )
+        stories = latest or []
+        lead = _lead_story(stories)
+        return FrontPage(
+            lead=lead,
+            top_stories=tuple(doc for doc in stories if doc is not lead)[:_TOP_STORIES],
+            ticker=tuple(stories[:_TICKER_ITEMS]),
+            sections=sections,
+            coverage=coverage_stats(latest, sources, now=now) if latest is not None else None,
+            health=crawl_health(runs, api_ready=self._ready()) if runs is not None else None,
+            credits=credit_summary(usage, sources, now=now) if usage is not None else None,
+            pending_count=len(pending) if pending is not None else None,
+            pending_capped=pending is not None and len(pending) >= _PENDING_LIMIT,
+            sources=sources,
+            generated_at=now,
+            notices=tuple(notices),
+        )
+
+    def section(self, source_code: str, *, cursor: str | None = None) -> SectionPage:
+        """One source's documents, newest first, with keyset pagination."""
+        sources = self._sources([])
+        page = self._cached(
+            ("documents", source_code, cursor),
+            lambda: self._client.documents(
+                source=source_code, limit=self._settings.section_page_size, cursor=cursor
+            ),
+        )
+        return SectionPage(
+            source=source_for(source_code, sources),
+            documents=tuple(page.items),
+            next_cursor=page.next_cursor if page.has_more else None,
+            sources=sources,
+            generated_at=self._clock(),
+        )
+
+    def article(self, document_id: int) -> ArticlePage:
+        """One document with its text, attachments, and related stories."""
+        sources = self._sources([])
+        document = self._cached(("document", document_id), lambda: self._client.document(document_id))
+        resources = self._attempt(
+            lambda: self._cached(("resources", document_id), lambda: self._client.resources(document_id)),
+            "attachments",
+            [],
+        )
+        related = self._attempt(
+            lambda: self._cached(
+                ("documents", document.source_code, None),
+                lambda: self._client.documents(
+                    source=document.source_code, limit=self._settings.section_page_size
+                ),
+            ).items,
+            "related stories",
+            [],
+        )
+        return ArticlePage(
+            document=document,
+            source=source_for(document.source_code, sources),
+            paragraphs=paragraphs(document.text),
+            resources=tuple(resources or ()),
+            related=tuple(doc for doc in (related or []) if doc.id != document.id)[:_RELATED_ITEMS],
+            sources=sources,
+            generated_at=self._clock(),
+        )
+
+    def status_desk(self, run_id: str | None = None) -> StatusDesk:
+        """Crawl operations: recent runs, one run's detail, and credit history."""
+        sources = self._sources([])
+        runs = self._recent_runs()
+        chosen = run_id or (runs[0].run_id if runs else None)
+        selected = self._cached(("run", chosen), lambda: self._client.run(chosen)) if chosen else None
+        usage = self._attempt(lambda: self._cached(("credits",), self._client.credits), "credits", [])
+        return StatusDesk(
+            health=crawl_health(runs, api_ready=self._ready()),
+            selected=selected,
+            credits=tuple(usage or ()),
+            sources=sources,
+            generated_at=self._clock(),
+        )
+
+    # --- Helpers -----------------------------------------------------------
+
+    def _sources(self, notices: list[str]) -> dict[str, Source]:
+        """Sources keyed by code (empty, with a notice, when unavailable)."""
+        listed = self._attempt(lambda: self._cached(("sources",), self._client.sources), "sources", notices)
+        return {source.code: source for source in (listed or [])}
+
+    def _recent_runs(self) -> list[Run]:
+        return self._cached(
+            ("runs",), lambda: self._client.runs(limit=self._settings.status_desk_runs)
+        ).items
+
+    def _ready(self) -> bool:
+        return self._cached(("ready",), self._client.is_ready)
+
+    def _cached[T](self, key: tuple[object, ...], produce: Callable[[], T]) -> T:
+        return self._cache.get_or_set(key, produce)
+
+    @staticmethod
+    def _attempt[T](produce: Callable[[], T], label: str, notices: list[str]) -> T | None:
+        """Run one panel's fetch; on API failure record a notice and return None."""
+        try:
+            return produce()
+        except LexCrawlApiError:
+            notices.append(f"{label.capitalize()} are temporarily unavailable.")
+            return None
+
+
+def _lead_story(documents: Sequence[Document]) -> Document | None:
+    """Prefer the newest document that has a summary; otherwise the newest overall."""
+    for document in documents:
+        if document.summary:
+            return document
+    return documents[0] if documents else None

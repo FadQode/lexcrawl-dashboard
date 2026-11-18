@@ -1,0 +1,19 @@
+{% import "macros.html" as ui %}
+<section class="panel">
+  <h2 class="panel__title">Provider credits</h2>
+  {% if page.credits %}
+    {% set credits = page.credits %}
+    <div class="stats">
+      {{ ui.stat("This month", credits.this_month | number, (credits.change | signed) ~ " vs last month") }}
+      {{ ui.stat("Last month", credits.last_month | number) }}
+    </div>
+    {% set top = credits.by_source[0][1] if credits.by_source else 0 %}
+    {% for source, used in credits.by_source %}
+      {{ ui.bar(source.name, used, top, source.code | source_tone) }}
+    {% else %}
+      <p class="panel__note">No paid scraping this month.</p>
+    {% endfor %}
+  {% else %}
+    <p class="empty">Credit figures are unavailable.</p>
+  {% endif %}
+</section>

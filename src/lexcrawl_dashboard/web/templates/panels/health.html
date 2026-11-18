@@ -1,0 +1,30 @@
+{% import "macros.html" as ui %}
+<section class="panel">
+  <h2 class="panel__title">Crawl health</h2>
+  {% if page.health %}
+    {% set health = page.health %}
+    <p class="panel__lead pulse pulse--{{ health.state }}"><span class="pulse__dot"></span>
+      {% if health.state == "ok" %}All systems running
+      {% elif health.state == "degraded" %}Last run had problems
+      {% elif health.state == "down" %}API or database not ready
+      {% else %}No runs yet{% endif %}
+    </p>
+    <div class="stats">
+      {{ ui.stat("Success rate", health.success_rate | percent, "last " ~ health.recent_runs | length ~ " runs") }}
+      {{ ui.stat("Avg. run time", health.average_duration_seconds | duration) }}
+      {{ ui.stat("Last success", health.last_success_at | time_ago(page.generated_at)) }}
+      {{ ui.stat("Pending retries",
+                 (page.pending_count | number) ~ ("+" if page.pending_capped else "")) }}
+    </div>
+    {% if health.recent_runs %}
+      <ol class="run-strip" aria-label="Recent runs, newest first">
+        {% for run in health.recent_runs[:12] %}
+          <li><a href="/status?run={{ run.run_id }}" class="run-strip__cell badge--{{ run.status | status_tone }}"
+                 title="{{ run.status | humanize }} · {{ run.started_at | clock_time }}"></a></li>
+        {% endfor %}
+      </ol>
+    {% endif %}
+  {% else %}
+    <p class="empty">Run history is unavailable.</p>
+  {% endif %}
+</section>

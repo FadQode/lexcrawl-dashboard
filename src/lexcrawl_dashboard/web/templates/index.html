@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% import "macros.html" as ui %}
+
+{% block masthead_status %}
+  {% if page.health %}
+    <a href="/status" class="pulse pulse--{{ page.health.state }}">
+      <span class="pulse__dot"></span> Crawler {{ page.health.state }}
+      {% if page.health.last_run %} · last run {{ page.health.last_run.started_at | time_ago(page.generated_at) }}{% endif %}
+    </a>
+  {% endif %}
+{% endblock %}
+
+{% block content %}
+  {% if page.ticker %}
+    <section class="ticker" aria-label="Latest">
+      <span class="ticker__label">Latest</span>
+      <div class="ticker__track">
+        {% for doc in page.ticker %}
+          <a href="/documents/{{ doc.id }}">{{ doc.title }}</a>
+        {% endfor %}
+      </div>
+    </section>
+  {% endif %}
+
+  <div class="front">
+    <section class="front__news" aria-label="Top stories">
+      {% if page.lead %}
+        {{ ui.story(page.lead, page.sources, size="lead") }}
+        <div class="top-stories">
+          {% for doc in page.top_stories %}{{ ui.story(doc, page.sources) }}{% endfor %}
+        </div>
+      {% else %}
+        <p class="empty">No documents have been crawled yet. They will appear here after the first crawl.</p>
+      {% endif %}
+    </section>
+
+    <aside class="front__rail" aria-label="Dashboard">
+      {% include "panels/health.html" %}
+      {% include "panels/coverage.html" %}
+      {% include "panels/credits.html" %}
+    </aside>
+  </div>
+
+  {% for section in page.sections %}
+    <section class="section-block">
+      <h2 class="section-block__title {{ section.source.code | source_tone }}">
+        <a href="/sections/{{ section.source.code }}">{{ section.source.name }}</a>
+        <a class="section-block__more" href="/sections/{{ section.source.code }}">All stories →</a>
+      </h2>
+      <div class="section-block__grid">
+        {% for doc in section.documents %}
+          {{ ui.story(doc, page.sources, size="small", show_summary=loop.first) }}
+        {% endfor %}
+      </div>
+    </section>
+  {% endfor %}
+{% endblock %}

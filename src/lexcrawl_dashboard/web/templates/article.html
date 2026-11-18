@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% import "macros.html" as ui %}
+
+{% block title %}{{ page.document.title }} · {{ site_title }}{% endblock %}
+
+{% block content %}
+  {% set doc = page.document %}
+  <div class="article-layout">
+    <article class="article" lang="{{ doc.language }}" dir="{{ 'rtl' if doc.language == 'ar' else 'auto' }}">
+      {{ ui.kicker(doc.source_code, page.sources) }}
+      <h1 class="article__headline">{{ doc.title }}</h1>
+      {% if doc.summary %}<p class="article__standfirst">{{ doc.summary }}</p>{% endif %}
+      <p class="article__byline">
+        <time>{{ doc | published }}</time>
+        {% if doc.document_type %}· {{ doc.document_type | humanize }}{% endif %}
+        · <a href="{{ doc.source_url }}" rel="noopener noreferrer" target="_blank">Original source ↗</a>
+      </p>
+      {% if doc.image_url %}
+        <img class="article__image" src="{{ doc.image_url }}" alt="" loading="lazy" referrerpolicy="no-referrer">
+      {% endif %}
+
+      {% if page.paragraphs %}
+        <div class="article__body">
+          {% for paragraph in page.paragraphs %}<p>{{ paragraph }}</p>{% endfor %}
+        </div>
+      {% else %}
+        <div class="notice">
+          The full text is not available yet{% if doc.extraction_error %} ({{ doc.extraction_error }}){% endif %}.
+          Read it at the <a href="{{ doc.source_url }}" rel="noopener noreferrer" target="_blank">original source</a>.
+        </div>
+      {% endif %}
+    </article>
+
+    <aside class="article-rail">
+      <section class="panel">
+        <h2 class="panel__title">Record</h2>
+        <dl class="facts">
+          <dt>Status</dt><dd>{{ ui.badge(doc.extraction_status) }}</dd>
+          <dt>Language</dt><dd>{{ doc.language | upper }}</dd>
+          <dt>First seen</dt><dd>{{ doc.first_seen_at | clock_time }}</dd>
+          <dt>Last seen</dt><dd>{{ doc.last_seen_at | clock_time }}</dd>
+          {% if doc.published_date_raw %}<dt>Date as printed</dt><dd>{{ doc.published_date_raw }}</dd>{% endif %}
+          {% if doc.topics %}<dt>Topics</dt><dd>{{ doc.topics | join(", ") }}</dd>{% endif %}
+        </dl>
+      </section>
+
+      {% if page.resources %}
+        <section class="panel">
+          <h2 class="panel__title">Attachments</h2>
+          <ul class="attachments">
+            {% for resource in page.resources %}
+              <li>
+                {% if resource.url %}<a href="{{ resource.url }}" rel="noopener noreferrer" target="_blank">{{ resource.title }}</a>{% else %}{{ resource.title }}{% endif %}
+                <span class="attachments__kind">{{ resource.kind | upper }}</span> {{ ui.badge(resource.status) }}
+              </li>
+            {% endfor %}
+          </ul>
+        </section>
+      {% endif %}
+
+      {% if page.related %}
+        <section class="panel">
+          <h2 class="panel__title">More from {{ page.source.name }}</h2>
+          {% for related in page.related %}{{ ui.story(related, page.sources, size="small", show_summary=false) }}{% endfor %}
+        </section>
+      {% endif %}
+    </aside>
+  </div>
+{% endblock %}

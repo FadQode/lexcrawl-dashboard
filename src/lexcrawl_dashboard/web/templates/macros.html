@@ -1,0 +1,43 @@
+{#- Reusable fragments. Import with: {% import "macros.html" as ui %} -#}
+
+{% macro kicker(code, sources) -%}
+  {%- set source = sources.get(code) -%}
+  <a class="kicker {{ code | source_tone }}" href="/sections/{{ code }}">{{ source.name if source else code | humanize }}</a>
+{%- endmacro %}
+
+{% macro badge(status) -%}
+  <span class="badge badge--{{ status | status_tone }}">{{ status | humanize }}</span>
+{%- endmacro %}
+
+{% macro story(doc, sources, size="medium", show_summary=true) -%}
+  <article class="story story--{{ size }}">
+    {% if size == "lead" and doc.image_url %}
+      <img class="story__image" src="{{ doc.image_url }}" alt="" loading="lazy" referrerpolicy="no-referrer">
+    {% endif %}
+    {{ kicker(doc.source_code, sources) }}
+    <h3 class="story__headline"><a href="/documents/{{ doc.id }}">{{ doc.title }}</a></h3>
+    {% if show_summary and doc.summary %}<p class="story__summary">{{ doc.summary }}</p>{% endif %}
+    <p class="story__meta">
+      <time>{{ doc | published }}</time>
+      {% if doc.document_type %}<span>· {{ doc.document_type | humanize }}</span>{% endif %}
+      {% if doc.language != "en" %}<span class="lang">{{ doc.language | upper }}</span>{% endif %}
+      {% if doc.extraction_status != "complete" %}{{ badge(doc.extraction_status) }}{% endif %}
+    </p>
+  </article>
+{%- endmacro %}
+
+{% macro stat(label, value, note="") -%}
+  <div class="stat">
+    <span class="stat__value">{{ value }}</span>
+    <span class="stat__label">{{ label }}</span>
+    {% if note %}<span class="stat__note">{{ note }}</span>{% endif %}
+  </div>
+{%- endmacro %}
+
+{% macro bar(label, value, maximum, tone="") -%}
+  <div class="bar">
+    <span class="bar__label">{{ label }}</span>
+    <span class="bar__track"><span class="bar__fill {{ tone }}" style="width: {{ (100 * value / maximum) | round(1) if maximum else 0 }}%"></span></span>
+    <span class="bar__value">{{ value | number }}</span>
+  </div>
+{%- endmacro %}

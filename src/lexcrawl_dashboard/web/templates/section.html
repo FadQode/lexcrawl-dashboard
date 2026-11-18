@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% import "macros.html" as ui %}
+
+{% block title %}{{ page.source.name }} · {{ site_title }}{% endblock %}
+
+{% block content %}
+  <header class="page-head">
+    <p class="kicker {{ page.source.code | source_tone }}">Section</p>
+    <h1 class="page-head__title">{{ page.source.name }}</h1>
+    {% if page.source.base_url %}
+      <p class="page-head__note">Crawled from <a href="{{ page.source.base_url }}" rel="noopener noreferrer" target="_blank">{{ page.source.base_url }}</a></p>
+    {% endif %}
+  </header>
+
+  {% if page.documents %}
+    <div class="archive">
+      {% for doc in page.documents %}
+        {{ ui.story(doc, page.sources, size="lead" if loop.first and not request.query_params.get("cursor") else "medium") }}
+      {% endfor %}
+    </div>
+  {% else %}
+    <p class="empty">No documents in this section yet.</p>
+  {% endif %}
+
+  <nav class="pager" aria-label="Pages">
+    {% if request.query_params.get("cursor") %}<a href="/sections/{{ page.source.code }}">← Newest</a>{% endif %}
+    {% if page.next_cursor %}<a href="/sections/{{ page.source.code }}?cursor={{ page.next_cursor | urlencode }}">Older stories →</a>{% endif %}
+  </nav>
+{% endblock %}

@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}{{ site_title }}{% endblock %}</title>
+  <meta name="description" content="{{ site_tagline }}">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;800&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&family=Inter:wght@400;600&display=swap">
+  <link rel="stylesheet" href="{{ url_for('static', path='css/site.css') }}?v={{ version }}">
+</head>
+<body>
+  {% set sources = page.sources if page is defined and page.sources is defined else {} %}
+  <header class="masthead">
+    <div class="masthead__bar wrap">
+      <span class="masthead__date">{% if page is defined %}{{ page.generated_at | long_date }}{% endif %}</span>
+      {% block masthead_status %}{% endblock %}
+    </div>
+    <div class="masthead__title wrap">
+      <a href="/" class="masthead__name">{{ site_title }}</a>
+      <p class="masthead__tagline">{{ site_tagline }}</p>
+    </div>
+    <nav class="sections-nav" aria-label="Sections">
+      <div class="wrap sections-nav__list">
+        <a href="/" class="{{ 'is-active' if nav == 'home' }}">Front page</a>
+        {% for source in sources.values() %}
+          <a href="/sections/{{ source.code }}" class="{{ 'is-active' if nav == source.code }}">{{ source.name }}</a>
+        {% endfor %}
+        <a href="/status" class="sections-nav__desk {{ 'is-active' if nav == 'status' }}">Status desk</a>
+      </div>
+    </nav>
+  </header>
+
+  {% if page is defined and page.notices %}
+    <div class="wrap notices" role="status">
+      {% for notice in page.notices %}<p class="notice">{{ notice }}</p>{% endfor %}
+    </div>
+  {% endif %}
+
+  <main class="wrap">
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap site-footer__inner">
+      <span><strong>{{ site_title }}</strong> · v{{ version }}</span>
+      <span>Data from the LexCrawl API{% if page is defined %} · updated {{ page.generated_at | clock_time }}{% endif %}</span>
+    </div>
+  </footer>
+</body>
+</html>

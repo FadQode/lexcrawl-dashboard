@@ -118,6 +118,18 @@ class ArticlePage:
 
 
 @dataclass(frozen=True, slots=True)
+class ConnectionReport:
+    """What the dashboard sees when it calls the API (safe to show: no secrets)."""
+
+    api_host: str
+    url_configured: bool
+    token_configured: bool
+    reachable: bool
+    error: str | None
+    status_code: int | None
+
+
+@dataclass(frozen=True, slots=True)
 class StatusDesk:
     """Crawl operations: recent runs and the detail of one run."""
 

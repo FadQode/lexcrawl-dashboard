@@ -102,8 +102,25 @@ def test_front_page_degrades_instead_of_failing(browser: TestClient, api: respx.
 
 
 def test_token_never_reaches_the_browser(browser: TestClient) -> None:
-    for path in ("/", "/documents/1", "/status"):
+    for path in ("/", "/documents/1", "/status", "/readyz"):
         assert TOKEN not in browser.get(path).text
+
+
+def test_readyz_reports_a_working_connection(browser: TestClient) -> None:
+    response = browser.get("/readyz")
+    assert response.status_code == 200
+    report = response.json()
+    assert report["reachable"] is True and report["api_host"] == "api.test"
+    assert report["url_configured"] is True and report["error"] is None
+
+
+def test_readyz_explains_a_rejected_token(browser: TestClient, api: respx.MockRouter) -> None:
+    api.get("/sources").mock(return_value=httpx.Response(401))
+    response = browser.get("/readyz")
+    assert response.status_code == 503
+    report = response.json()
+    assert report["reachable"] is False and report["status_code"] == 401
+    assert "rejected the token" in report["error"]
 
 
 def test_healthz_and_static_assets(browser: TestClient) -> None:

@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+from dataclasses import asdict
+
 from fastapi import APIRouter, Depends, Query, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 
 from lexcrawl_dashboard.service import DashboardService
@@ -74,3 +76,10 @@ def status_desk(
 def healthz() -> dict[str, str]:
     """Liveness check for hosting platforms (does not call the API)."""
     return {"status": "ok"}
+
+
+@router.get("/readyz", include_in_schema=False)
+def readyz(service: DashboardService = Depends(get_service)) -> JSONResponse:
+    """Readiness: can this deployment reach the API and authenticate? Never reveals secrets."""
+    report = service.connection_report()
+    return JSONResponse(asdict(report), status_code=200 if report.reachable else 503)

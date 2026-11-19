@@ -9,13 +9,21 @@ from __future__ import annotations
 import logging
 from collections.abc import Callable, Sequence
 from datetime import UTC, datetime
+from urllib.parse import urlsplit
 
 from lexcrawl_dashboard.cache import TtlCache
 from lexcrawl_dashboard.client import LexCrawlApiError, LexCrawlClient
 from lexcrawl_dashboard.config import Settings
 from lexcrawl_dashboard.insights import coverage_stats, crawl_health, credit_summary, paragraphs, source_for
 from lexcrawl_dashboard.models import Document, Run, Source
-from lexcrawl_dashboard.viewmodels import ArticlePage, FrontPage, Section, SectionPage, StatusDesk
+from lexcrawl_dashboard.viewmodels import (
+    ArticlePage,
+    ConnectionReport,
+    FrontPage,
+    Section,
+    SectionPage,
+    StatusDesk,
+)
 
 LOGGER = logging.getLogger(__name__)
 
@@ -144,6 +152,23 @@ class DashboardService:
             credits=tuple(usage or ()),
             sources=sources,
             generated_at=self._clock(),
+        )
+
+    def connection_report(self) -> ConnectionReport:
+        """Call an authenticated endpoint, uncached, and report exactly what happened."""
+        url = self._settings.lexcrawl_api_url
+        error: LexCrawlApiError | None = None
+        try:
+            self._client.sources()
+        except LexCrawlApiError as failure:
+            error = failure
+        return ConnectionReport(
+            api_host=urlsplit(url).netloc or url,
+            url_configured=url != Settings.model_fields["lexcrawl_api_url"].default,
+            token_configured=bool(self._settings.lexcrawl_api_token.get_secret_value()),
+            reachable=error is None,
+            error=str(error) if error else None,
+            status_code=error.status_code if error else None,
         )
 
     # --- Helpers -----------------------------------------------------------

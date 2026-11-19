@@ -2,23 +2,12 @@
 
 from __future__ import annotations
 
-import zlib
 from collections.abc import Callable
 from datetime import UTC, date, datetime
 from typing import Any
 
 from lexcrawl_dashboard.models import Document
-
-_TONES = 6
-_STATUS_TONES = {
-    "success": "ok",
-    "complete": "ok",
-    "partial_failure": "warn",
-    "pending": "warn",
-    "running": "info",
-    "failed": "bad",
-    "abandoned": "bad",
-}
+from lexcrawl_dashboard.palette import source_tone, status_tone
 
 
 def published(document: Document) -> str:
@@ -87,16 +76,6 @@ def signed(value: int) -> str:
     if value > 0:
         return f"+{value:,}"
     return f"{value:,}" if value < 0 else "±0"
-
-
-def source_tone(code: str) -> str:
-    """A stable colour class per source, so each section keeps its colour."""
-    return f"tone-{zlib.crc32(code.encode()) % _TONES}"
-
-
-def status_tone(status: str | None) -> str:
-    """Badge colour for a run or extraction status."""
-    return _STATUS_TONES.get(status or "", "muted")
 
 
 def humanize(value: str | None) -> str:

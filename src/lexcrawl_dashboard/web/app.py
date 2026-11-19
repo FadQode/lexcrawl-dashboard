@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -19,6 +20,25 @@ from lexcrawl_dashboard.web.formatting import FILTERS
 from lexcrawl_dashboard.web.routes import router
 
 _WEB_DIR = Path(__file__).parent
+_DEFAULT_API_URL = Settings.model_fields["lexcrawl_api_url"].default
+
+LOGGER = logging.getLogger(__name__)
+
+
+def warn_on_suspicious_config(settings: Settings) -> list[str]:
+    """Log (and return) the misconfigurations that make every panel fail.
+
+    Deployed copies most often break because the API URL or token was never set on the
+    host, which silently falls back to localhost or an empty token.
+    """
+    problems: list[str] = []
+    if settings.lexcrawl_api_url == _DEFAULT_API_URL:
+        problems.append(f"LEXCRAWL_API_URL is not set; using the default {_DEFAULT_API_URL}")
+    if not settings.lexcrawl_api_token.get_secret_value():
+        problems.append("LEXCRAWL_API_TOKEN is not set; the API will answer 401")
+    for problem in problems:
+        LOGGER.warning("configuration: %s", problem)
+    return problems
 
 
 def build_templates(settings: Settings) -> Jinja2Templates:
@@ -37,6 +57,7 @@ def create_app(settings: Settings | None = None, *, client: LexCrawlClient | Non
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+        warn_on_suspicious_config(resolved)
         api = client or LexCrawlClient(
             resolved.lexcrawl_api_url,
             resolved.lexcrawl_api_token.get_secret_value(),
@@ -62,6 +83,7 @@ def create_app(settings: Settings | None = None, *, client: LexCrawlClient | Non
 
     @app.exception_handler(LexCrawlApiError)
     async def api_unavailable(request: Request, error: LexCrawlApiError) -> HTMLResponse:
+        LOGGER.warning("page %s failed: %s (status=%s)", request.url.path, error, error.status_code)
         return _error_page(request, 503, "The newsroom is offline",
                            "The LexCrawl API could not be reached. Please try again in a minute.")
 

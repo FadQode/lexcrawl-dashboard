@@ -6,6 +6,7 @@ left empty and a notice is shown, instead of the whole page failing.
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable, Sequence
 from datetime import UTC, datetime
 
@@ -15,6 +16,8 @@ from lexcrawl_dashboard.config import Settings
 from lexcrawl_dashboard.insights import coverage_stats, crawl_health, credit_summary, paragraphs, source_for
 from lexcrawl_dashboard.models import Document, Run, Source
 from lexcrawl_dashboard.viewmodels import ArticlePage, FrontPage, Section, SectionPage, StatusDesk
+
+LOGGER = logging.getLogger(__name__)
 
 _TOP_STORIES = 4
 _TICKER_ITEMS = 10
@@ -166,7 +169,9 @@ class DashboardService:
         """Run one panel's fetch; on API failure record a notice and return None."""
         try:
             return produce()
-        except LexCrawlApiError:
+        except LexCrawlApiError as error:
+            # $ Visitors see a generic notice; operators get the real cause in the server log.$
+            LOGGER.warning("panel %r unavailable: %s (status=%s)", label, error, error.status_code)
             notices.append(f"{label.capitalize()} are temporarily unavailable.")
             return None
 

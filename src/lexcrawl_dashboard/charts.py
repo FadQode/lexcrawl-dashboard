@@ -160,7 +160,8 @@ def publications_chart(series: PublicationSeries) -> Chart:
         for index, (year, month) in enumerate(series.months)
     ]
     legend = [LegendItem(row.source.name, source_tone(row.source.code)) for row in series.series]
-    return stacked_columns(categories, stacks, legend=legend)
+    # $ The canvas matches the on-screen size, so SVG text keeps a readable size.$
+    return stacked_columns(categories, stacks, legend=legend, frame=_Frame(width=620, height=250))
 
 
 def runs_chart(runs: Sequence[Run], *, limit: int = 20) -> Chart:
@@ -175,7 +176,9 @@ def runs_chart(runs: Sequence[Run], *, limit: int = 20) -> Chart:
         for run in chosen
     ]
     # $ A run that took ~0 s still gets a visible sliver, so every run shows its outcome.$
-    return stacked_columns(categories, stacks, frame=_Frame(height=160, bottom=26), min_height=3, unit="s")
+    return stacked_columns(
+        categories, stacks, frame=_Frame(width=360, height=160, bottom=26), min_height=3, unit="s"
+    )
 
 
 def _run_title(run: Run) -> str:

@@ -8,8 +8,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 from lexcrawl_dashboard.models import CreditUsage, Document, DocumentDetail, Resource, Run, RunDetail, Source
+
+if TYPE_CHECKING:
+    # $ charts depends on viewmodels, so the reverse reference is for type checking only.$
+    from lexcrawl_dashboard.charts import Chart
 
 
 @dataclass(frozen=True, slots=True)
@@ -108,6 +113,19 @@ class Section:
 
 
 @dataclass(frozen=True, slots=True)
+class DataDesk:
+    """The front-page hero: archive-wide figures, charts, and findings."""
+
+    coverage: CoverageStats
+    corpus_capped: bool
+    shares: tuple[SourceShare, ...]
+    publications: PublicationSeries
+    publications_chart: Chart
+    runs_chart: Chart | None
+    insights: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
 class FrontPage:
     """Everything the front page renders."""
 
@@ -115,8 +133,7 @@ class FrontPage:
     top_stories: tuple[Document, ...]
     ticker: tuple[Document, ...]
     sections: tuple[Section, ...]
-    coverage: CoverageStats | None
-    corpus_capped: bool
+    data_desk: DataDesk | None
     health: CrawlHealth | None
     credits: CreditSummary | None
     pending_count: int | None

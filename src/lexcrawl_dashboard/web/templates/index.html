@@ -22,8 +22,13 @@
     </section>
   {% endif %}
 
+  {% if page.data_desk %}
+    {% include "panels/data_desk.html" %}
+  {% endif %}
+
+  <h2 class="band-title">Latest stories</h2>
   <div class="front">
-    <section class="front__news" aria-label="Top stories">
+    <section class="front__news" aria-label="Latest stories">
       {% if page.lead %}
         {{ ui.story(page.lead, page.sources, size="lead") }}
         <div class="top-stories">
@@ -36,7 +41,6 @@
 
     <aside class="front__rail" aria-label="Dashboard">
       {% include "panels/health.html" %}
-      {% include "panels/coverage.html" %}
       {% include "panels/credits.html" %}
     </aside>
   </div>

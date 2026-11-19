@@ -63,7 +63,12 @@ def test_front_page_assembles_every_panel(service: DashboardService) -> None:
     assert page.lead not in page.top_stories and len(page.top_stories) == 4
     assert [section.source.code for section in page.sections] == ["cba_news_releases", "commerce_reports"]
     assert len(page.sections[0].documents) == 5
-    assert page.coverage is not None and page.coverage.window_size == 8
+    desk = page.data_desk
+    assert desk is not None and desk.coverage.window_size == 8
+    assert desk.shares[0].source.code == "cba_news_releases"
+    assert not desk.publications_chart.is_empty
+    assert desk.runs_chart is not None and len(desk.runs_chart.bars) == 1
+    assert any("supplies the most material" in finding for finding in desk.insights)
     assert page.health is not None and page.health.state == "ok"
     assert page.credits is not None and page.credits.this_month == 42
     assert page.pending_count == 1 and not page.pending_capped
@@ -92,8 +97,8 @@ def test_archive_pages_through_every_document(service: DashboardService) -> None
     page = service.front_page()
     assert route.call_count == 2
     assert route.calls[1].request.url.params["cursor"] == "p2"
-    assert page.coverage is not None and page.coverage.window_size == 3
-    assert page.corpus_capped is False
+    assert page.data_desk is not None and page.data_desk.coverage.window_size == 3
+    assert page.data_desk.corpus_capped is False
 
 
 @respx.mock
@@ -106,7 +111,7 @@ def test_archive_stops_at_the_configured_cap() -> None:
     with LexCrawlClient(API_URL, TOKEN) as client:
         page = DashboardService(client, settings, clock=lambda: NOW).front_page()
     assert route.call_count == 1 and route.calls[0].request.url.params["limit"] == "2"
-    assert page.corpus_capped is True
+    assert page.data_desk is not None and page.data_desk.corpus_capped is True
 
 
 @respx.mock

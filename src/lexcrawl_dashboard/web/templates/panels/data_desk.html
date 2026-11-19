@@ -1,0 +1,82 @@
+{% import "macros.html" as ui %}
+{% set desk = page.data_desk %}
+{% set coverage = desk.coverage %}
+<section class="datadesk" aria-labelledby="datadesk-title">
+  <header class="datadesk__head">
+    <p class="kicker">Data desk</p>
+    <h2 id="datadesk-title" class="datadesk__title">The archive at a glance</h2>
+    <p class="datadesk__note">
+      Across {{ "the latest" if desk.corpus_capped else "all" }} {{ coverage.window_size | number }} crawled documents
+      from {{ coverage.by_source | length }} sources · updated {{ page.generated_at | clock_time }}
+    </p>
+  </header>
+
+  <div class="kpis">
+    {{ ui.kpi("Documents tracked", (coverage.window_size | number) ~ ("+" if desk.corpus_capped else "")) }}
+    {{ ui.kpi("Active sources", coverage.by_source | length, coverage.languages | join(" · ") | upper) }}
+    {{ ui.kpi("New this week", coverage.new_last_7d | number, (coverage.new_last_24h | number) ~ " in the last 24 h") }}
+    {{ ui.kpi("Full text extracted", coverage.extraction_rate | percent,
+              ((page.pending_count | number) ~ " awaiting retry") if page.pending_count else "") }}
+    {% if page.health and page.health.last_run %}
+      {{ ui.kpi("Last crawl", page.health.last_run.started_at | time_ago(page.generated_at),
+                page.health.last_run.status | humanize, "kpi--" ~ (page.health.last_run.status | status_tone)) }}
+    {% else %}
+      {{ ui.kpi("Last crawl", "—", "no runs recorded") }}
+    {% endif %}
+  </div>
+
+  <div class="datadesk__grid">
+    <figure class="figure figure--wide">
+      <figcaption class="figure__title">Publications per month <span class="figure__sub">last {{ desk.publications.months | length }} months, by source</span></figcaption>
+      {% if desk.publications_chart.is_empty %}
+        <p class="empty">No dated documents in the last {{ desk.publications.months | length }} months.</p>
+      {% else %}
+        {{ ui.column_chart(desk.publications_chart, "Documents published per month, stacked by source") }}
+      {% endif %}
+      <ul class="legend">
+        {% for item in desk.publications_chart.legend %}<li><span class="legend__swatch {{ item.css_class }}"></span>{{ item.label }}</li>{% endfor %}
+      </ul>
+      {% if desk.publications.before_window or desk.publications.undated %}
+        <p class="figure__note">Not shown: {{ desk.publications.before_window | number }} older, {{ desk.publications.undated | number }} undated.</p>
+      {% endif %}
+    </figure>
+
+    <div class="datadesk__side">
+      <figure class="figure">
+        <figcaption class="figure__title">Source mix</figcaption>
+        <div class="mix" role="img" aria-label="Share of documents by source">
+          {% for item in desk.shares %}
+            <span class="mix__part {{ item.source.code | source_tone }}" style="width: {{ (item.share * 100) | round(2) }}%" title="{{ item.source.name }}: {{ item.share | percent }}"></span>
+          {% endfor %}
+        </div>
+        <ul class="mix__list">
+          {% for item in desk.shares %}
+            <li><span class="legend__swatch {{ item.source.code | source_tone }}"></span>
+              <a href="/sections/{{ item.source.code }}">{{ item.source.name }}</a>
+              <span class="mix__figure">{{ item.count | number }} · {{ item.share | percent }}</span></li>
+          {% endfor %}
+        </ul>
+      </figure>
+
+      <figure class="figure">
+        <figcaption class="figure__title">Crawl activity <span class="figure__sub">run time, oldest → newest</span></figcaption>
+        {% if desk.runs_chart and not desk.runs_chart.is_empty %}
+          {{ ui.column_chart(desk.runs_chart, "Recent crawl runs by duration, coloured by outcome") }}
+          <ul class="legend legend--compact">
+            <li><span class="legend__swatch ok"></span>Success</li>
+            <li><span class="legend__swatch warn"></span>Partial</li>
+            <li><span class="legend__swatch bad"></span>Failed</li>
+          </ul>
+        {% else %}
+          <p class="empty">No crawl runs recorded yet.</p>
+        {% endif %}
+      </figure>
+    </div>
+  </div>
+
+  {% if desk.insights %}
+    <ul class="insights" aria-label="Key findings">
+      {% for finding in desk.insights %}<li>{{ finding }}</li>{% endfor %}
+    </ul>
+  {% endif %}
+</section>

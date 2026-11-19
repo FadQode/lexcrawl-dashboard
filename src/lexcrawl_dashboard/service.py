@@ -12,13 +12,26 @@ from datetime import UTC, datetime
 from urllib.parse import urlsplit
 
 from lexcrawl_dashboard.cache import TtlCache
+from lexcrawl_dashboard.charts import publications_chart, runs_chart
 from lexcrawl_dashboard.client import LexCrawlApiError, LexCrawlClient
 from lexcrawl_dashboard.config import Settings
-from lexcrawl_dashboard.insights import coverage_stats, crawl_health, credit_summary, paragraphs, source_for
+from lexcrawl_dashboard.insights import (
+    coverage_stats,
+    crawl_health,
+    credit_summary,
+    headline_insights,
+    monthly_publications,
+    paragraphs,
+    source_for,
+    source_shares,
+)
 from lexcrawl_dashboard.models import Document, Run, Source
+from lexcrawl_dashboard.palette import assign_source_tones
 from lexcrawl_dashboard.viewmodels import (
     ArticlePage,
     ConnectionReport,
+    CrawlHealth,
+    DataDesk,
     FrontPage,
     Section,
     SectionPage,
@@ -75,16 +88,21 @@ class DashboardService:
         )
         stories = latest or []
         lead = _lead_story(stories)
+        health = crawl_health(runs, api_ready=self._ready()) if runs is not None else None
+        pending_count = len(pending) if pending is not None else None
         return FrontPage(
             lead=lead,
             top_stories=tuple(doc for doc in stories if doc is not lead)[:_TOP_STORIES],
             ticker=tuple(stories[:_TICKER_ITEMS]),
             sections=sections,
-            coverage=coverage_stats(corpus, sources, now=now) if corpus is not None else None,
-            corpus_capped=corpus_capped,
-            health=crawl_health(runs, api_ready=self._ready()) if runs is not None else None,
+            data_desk=(
+                _data_desk(corpus, corpus_capped, sources, runs, health, pending_count, now=now)
+                if corpus is not None
+                else None
+            ),
+            health=health,
             credits=credit_summary(usage, sources, now=now) if usage is not None else None,
-            pending_count=len(pending) if pending is not None else None,
+            pending_count=pending_count,
             pending_capped=pending is not None and len(pending) >= _PENDING_LIMIT,
             sources=sources,
             generated_at=now,
@@ -174,7 +192,10 @@ class DashboardService:
     def _sources(self, notices: list[str]) -> dict[str, Source]:
         """Sources keyed by code (empty, with a notice, when unavailable)."""
         listed = self._attempt(lambda: self._cached(("sources",), self._client.sources), "sources", notices)
-        return {source.code: source for source in (listed or [])}
+        sources = {source.code: source for source in (listed or [])}
+        if sources:
+            assign_source_tones(sources)
+        return sources
 
     def _archive(self) -> tuple[list[Document], bool]:
         """Every document, newest first, up to `insights_max_documents`; True when capped."""
@@ -214,6 +235,30 @@ class DashboardService:
             LOGGER.warning("panel %r unavailable: %s (status=%s)", label, error, error.status_code)
             notices.append(f"{label.capitalize()} are temporarily unavailable.")
             return None
+
+
+def _data_desk(
+    corpus: Sequence[Document],
+    capped: bool,
+    sources: dict[str, Source],
+    runs: Sequence[Run] | None,
+    health: CrawlHealth | None,
+    pending: int | None,
+    *,
+    now: datetime,
+) -> DataDesk:
+    """Assemble the front-page hero from the whole archive and recent runs."""
+    coverage = coverage_stats(corpus, sources, now=now)
+    publications = monthly_publications(corpus, sources, now=now)
+    return DataDesk(
+        coverage=coverage,
+        corpus_capped=capped,
+        shares=source_shares(coverage),
+        publications=publications,
+        publications_chart=publications_chart(publications),
+        runs_chart=runs_chart(runs) if runs else None,
+        insights=headline_insights(coverage, publications, health, pending=pending),
+    )
 
 
 def _lead_story(documents: Sequence[Document]) -> Document | None:

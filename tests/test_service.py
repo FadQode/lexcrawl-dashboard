@@ -81,6 +81,35 @@ def test_front_page_survives_a_failing_panel(service: DashboardService) -> None:
 
 
 @respx.mock
+def test_archive_pages_through_every_document(service: DashboardService) -> None:
+    _mock_front_page_api()
+    route = respx.get(f"{API_URL}/documents").mock(
+        side_effect=[
+            httpx.Response(200, json=_page([document(1), document(2)], cursor="p2")),
+            httpx.Response(200, json=_page([document(3)])),
+        ]
+    )
+    page = service.front_page()
+    assert route.call_count == 2
+    assert route.calls[1].request.url.params["cursor"] == "p2"
+    assert page.coverage is not None and page.coverage.window_size == 3
+    assert page.corpus_capped is False
+
+
+@respx.mock
+def test_archive_stops_at_the_configured_cap() -> None:
+    _mock_front_page_api()
+    route = respx.get(f"{API_URL}/documents").mock(
+        return_value=httpx.Response(200, json=_page([document(1), document(2)], cursor="more"))
+    )
+    settings = Settings(lexcrawl_api_url=API_URL, cache_ttl_seconds=0, insights_max_documents=2)
+    with LexCrawlClient(API_URL, TOKEN) as client:
+        page = DashboardService(client, settings, clock=lambda: NOW).front_page()
+    assert route.call_count == 1 and route.calls[0].request.url.params["limit"] == "2"
+    assert page.corpus_capped is True
+
+
+@respx.mock
 def test_section_paginates(service: DashboardService) -> None:
     respx.get(f"{API_URL}/sources").mock(return_value=httpx.Response(200, json=SOURCES))
     route = respx.get(f"{API_URL}/documents").mock(

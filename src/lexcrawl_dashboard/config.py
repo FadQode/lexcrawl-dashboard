@@ -26,6 +26,8 @@ class Settings(BaseSettings):
     cache_ttl_seconds: float = Field(default=60.0, ge=0)
 
     front_page_documents: int = Field(default=60, ge=1, le=200)
+    # Upper bound on documents paged in for archive-wide figures (keeps cold loads bounded).
+    insights_max_documents: int = Field(default=1000, ge=1, le=20_000)
     section_page_size: int = Field(default=24, ge=1, le=200)
     status_desk_runs: int = Field(default=20, ge=1, le=200)
 

@@ -3,7 +3,7 @@
   <h2 class="panel__title">Coverage</h2>
   {% if page.coverage %}
     {% set coverage = page.coverage %}
-    <p class="panel__note">Across the latest {{ coverage.window_size }} documents</p>
+    <p class="panel__note">Across {{ "the latest" if page.corpus_capped else "all" }} {{ coverage.window_size | number }} documents</p>
     <div class="stats">
       {{ ui.stat("New in 24 h", coverage.new_last_24h | number) }}
       {{ ui.stat("New in 7 days", coverage.new_last_7d | number) }}

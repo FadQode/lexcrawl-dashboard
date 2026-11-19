@@ -32,6 +32,7 @@ _TICKER_ITEMS = 10
 _SECTION_ITEMS = 5
 _RELATED_ITEMS = 5
 _PENDING_LIMIT = 500
+_API_PAGE_LIMIT = 200  # the API's maximum page size
 
 
 class DashboardService:
@@ -57,13 +58,9 @@ class DashboardService:
         now = self._clock()
         notices: list[str] = []
         sources = self._sources(notices)
-        latest = self._attempt(
-            lambda: self._cached(
-                ("documents", None), lambda: self._client.documents(limit=self._settings.front_page_documents)
-            ).items,
-            "latest documents",
-            notices,
-        )
+        archive = self._attempt(self._archive, "latest documents", notices)
+        corpus, corpus_capped = archive if archive is not None else (None, False)
+        latest = corpus[: self._settings.front_page_documents] if corpus is not None else None
         runs = self._attempt(lambda: self._recent_runs(), "crawl runs", notices)
         usage = self._attempt(lambda: self._cached(("credits",), self._client.credits), "credits", notices)
         pending = self._attempt(
@@ -83,7 +80,8 @@ class DashboardService:
             top_stories=tuple(doc for doc in stories if doc is not lead)[:_TOP_STORIES],
             ticker=tuple(stories[:_TICKER_ITEMS]),
             sections=sections,
-            coverage=coverage_stats(latest, sources, now=now) if latest is not None else None,
+            coverage=coverage_stats(corpus, sources, now=now) if corpus is not None else None,
+            corpus_capped=corpus_capped,
             health=crawl_health(runs, api_ready=self._ready()) if runs is not None else None,
             credits=credit_summary(usage, sources, now=now) if usage is not None else None,
             pending_count=len(pending) if pending is not None else None,
@@ -177,6 +175,23 @@ class DashboardService:
         """Sources keyed by code (empty, with a notice, when unavailable)."""
         listed = self._attempt(lambda: self._cached(("sources",), self._client.sources), "sources", notices)
         return {source.code: source for source in (listed or [])}
+
+    def _archive(self) -> tuple[list[Document], bool]:
+        """Every document, newest first, up to `insights_max_documents`; True when capped."""
+
+        def load() -> tuple[list[Document], bool]:
+            cap = self._settings.insights_max_documents
+            documents: list[Document] = []
+            cursor: str | None = None
+            while len(documents) < cap:
+                page = self._client.documents(limit=min(_API_PAGE_LIMIT, cap - len(documents)), cursor=cursor)
+                documents.extend(page.items)
+                if not page.has_more or not page.next_cursor:
+                    return documents, False
+                cursor = page.next_cursor
+            return documents, True
+
+        return self._cached(("archive",), load)
 
     def _recent_runs(self) -> list[Run]:
         return self._cached(

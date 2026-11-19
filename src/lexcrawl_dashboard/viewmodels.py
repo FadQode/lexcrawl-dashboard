@@ -33,6 +33,38 @@ class CoverageStats:
 
 
 @dataclass(frozen=True, slots=True)
+class SourceShare:
+    """One source's slice of the archive."""
+
+    source: Source
+    count: int
+    share: float
+
+
+@dataclass(frozen=True, slots=True)
+class SourceSeries:
+    """Monthly document counts for one source, aligned with `PublicationSeries.months`."""
+
+    source: Source
+    counts: tuple[int, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class PublicationSeries:
+    """Documents per publication month, per source, over a fixed window of months."""
+
+    months: tuple[tuple[int, int], ...]
+    series: tuple[SourceSeries, ...]
+    undated: int
+    before_window: int
+
+    @property
+    def totals(self) -> tuple[int, ...]:
+        """All sources combined, per month."""
+        return tuple(sum(row.counts[index] for row in self.series) for index in range(len(self.months)))
+
+
+@dataclass(frozen=True, slots=True)
 class CrawlHealth:
     """Crawl-run health derived from recent runs."""
 
@@ -84,6 +116,7 @@ class FrontPage:
     ticker: tuple[Document, ...]
     sections: tuple[Section, ...]
     coverage: CoverageStats | None
+    corpus_capped: bool
     health: CrawlHealth | None
     credits: CreditSummary | None
     pending_count: int | None

@@ -7,7 +7,18 @@ from datetime import UTC, datetime
 import pytest
 
 from lexcrawl_dashboard.cache import TtlCache
-from lexcrawl_dashboard.insights import coverage_stats, crawl_health, credit_summary, paragraphs, source_for
+from lexcrawl_dashboard.insights import (
+    coverage_stats,
+    crawl_health,
+    credit_summary,
+    headline_insights,
+    month_window,
+    monthly_publications,
+    paragraphs,
+    publication_month,
+    source_for,
+    source_shares,
+)
 from lexcrawl_dashboard.models import CreditUsage, Document, Run, Source
 from tests.fixtures import CREDITS, SOURCES, document, run
 
@@ -95,3 +106,49 @@ def test_ttl_cache_reuses_until_expiry_and_never_caches_failures() -> None:
     with pytest.raises(RuntimeError):
         cache.get_or_set("other", fail)
     assert cache.get_or_set("other", produce) == 3
+
+
+def test_month_window_crosses_year_boundaries() -> None:
+    window = month_window(datetime(2026, 2, 10, tzinfo=UTC), 4)
+    assert window == ((2025, 11), (2025, 12), (2026, 1), (2026, 2))
+
+
+def test_publication_month_uses_the_best_available_precision() -> None:
+    assert publication_month(_doc(1, published_at="2026-03-09")) == (2026, 3)
+    assert publication_month(_doc(1, published_at=None, published_month=5)) == (2026, 5)
+    assert publication_month(_doc(1, published_at=None, published_month=None)) is None
+
+
+def test_monthly_publications_counts_per_source_and_month() -> None:
+    docs = [
+        _doc(1, published_at="2026-11-02"),
+        _doc(2, published_at="2026-11-20"),
+        _doc(3, published_at="2026-10-05", source="commerce_reports"),
+        _doc(4, published_at="2020-01-01"),
+        _doc(5, published_at=None, published_month=None, published_year=None),
+    ]
+    series = monthly_publications(docs, SOURCE_MAP, now=NOW, months=3)
+    assert series.months == ((2026, 9), (2026, 10), (2026, 11))
+    assert [row.source.code for row in series.series] == ["cba_news_releases", "commerce_reports"]
+    assert series.series[0].counts == (0, 0, 2)
+    assert series.totals == (0, 1, 2)
+    assert (series.undated, series.before_window) == (1, 1)
+
+
+def test_source_shares_and_headline_insights() -> None:
+    docs = [_doc(1, published_at="2026-11-02"), _doc(2, published_at="2026-11-03"),
+            _doc(3, source="commerce_reports", published_at="2026-10-01")]
+    coverage = coverage_stats(docs, SOURCE_MAP, now=NOW)
+    shares = source_shares(coverage)
+    assert [round(item.share, 2) for item in shares] == [0.67, 0.33]
+    findings = headline_insights(
+        coverage, monthly_publications(docs, SOURCE_MAP, now=NOW), None, pending=4
+    )
+    assert findings[0].startswith("CBA news releases supplies the most material: 2 documents (67%)")
+    assert "Busiest month in the last 12: November 2026, with 2 documents published." in findings
+    assert "4 documents are still waiting for their full text." in findings
+
+
+def test_headline_insights_for_an_empty_archive() -> None:
+    coverage = coverage_stats([], SOURCE_MAP, now=NOW)
+    assert headline_insights(coverage, monthly_publications([], SOURCE_MAP, now=NOW), None, pending=0) == ()

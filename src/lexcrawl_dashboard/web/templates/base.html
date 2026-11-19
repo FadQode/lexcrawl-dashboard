@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600;6..72,700;6..72,800&family=Libre+Franklin:wght@400;500;600;700;800&display=swap">
-  <link rel="stylesheet" href="{{ url_for('static', path='css/site.css') }}?v={{ version }}">
+  <link rel="stylesheet" href="{{ url_for('static', path='css/site.css') }}?v={{ asset_version }}">
 </head>
 <body>
   {% set sources = page.sources if page is defined and page.sources is defined else {} %}

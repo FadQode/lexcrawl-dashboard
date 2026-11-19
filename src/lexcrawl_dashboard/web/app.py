@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -41,12 +42,21 @@ def warn_on_suspicious_config(settings: Settings) -> list[str]:
     return problems
 
 
+def asset_version() -> str:
+    """A short hash of the static assets, so browsers refetch them whenever they change."""
+    digest = hashlib.sha256()
+    for path in sorted((_WEB_DIR / "static").rglob("*")):
+        if path.is_file():
+            digest.update(path.read_bytes())
+    return digest.hexdigest()[:10]
+
+
 def build_templates(settings: Settings) -> Jinja2Templates:
     """Templates with the formatting filters and site-wide globals registered."""
     templates = Jinja2Templates(directory=_WEB_DIR / "templates")
     templates.env.filters.update(FILTERS)
     templates.env.globals.update(site_title=settings.site_title, site_tagline=settings.site_tagline,
-                                 version=__version__)
+                                 version=__version__, asset_version=asset_version())
     return templates
 
 

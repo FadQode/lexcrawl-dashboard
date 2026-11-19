@@ -70,8 +70,17 @@ def test_front_page_renders_news_and_dashboard(browser: TestClient) -> None:
     assert response.status_code == 200
     html = response.text
     assert "<title>Lexcrawl-Dashboard</title>" in html
-    for expected in ("Document 1", "Crawl health", "Coverage", "Provider credits", "CBA news releases"):
+    for expected in ("Document 1", "Crawl health", "Provider credits", "CBA news releases"):
         assert expected in html
+
+
+def test_front_page_leads_with_the_data_desk(browser: TestClient) -> None:
+    html = browser.get("/").text
+    for expected in ("The archive at a glance", "Documents tracked", "Publications per month",
+                     "Source mix", "Crawl activity", "supplies the most material"):
+        assert expected in html
+    assert html.index("The archive at a glance") < html.index("Latest stories")
+    assert '<svg class="chart-svg"' in html and 'class="chart-bar' in html
 
 
 def test_section_article_and_status_pages(browser: TestClient) -> None:
@@ -126,3 +135,11 @@ def test_readyz_explains_a_rejected_token(browser: TestClient, api: respx.MockRo
 def test_healthz_and_static_assets(browser: TestClient) -> None:
     assert browser.get("/healthz").json() == {"status": "ok"}
     assert browser.get("/static/css/site.css").status_code == 200
+
+
+def test_stylesheet_url_changes_with_its_content(browser: TestClient) -> None:
+    from lexcrawl_dashboard.web.app import asset_version
+
+    version = asset_version()
+    assert len(version) == 10
+    assert f"site.css?v={version}" in browser.get("/").text
